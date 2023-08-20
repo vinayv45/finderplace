@@ -1,4 +1,3 @@
-import 'dart:collection';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
@@ -28,30 +27,40 @@ class PlaceController extends GetxController {
 
   Future<List<LocationResult>> getPlaces(
       {double? latitude, double? longitude}) async {
-    SharedPreferences sharedPreferences = await SharedPreferences.getInstance();
-    errorText.value = "Fetching data....";
-    update();
-    // update();
-    String url =
-        "https://maps.googleapis.com/maps/api/place/search/json?location=$latitude,$longitude&rankby=distance&key=AIzaSyB2Az9gVUzQULUc55xQD9AE7gj9Ni5hvJk&sensor=true";
-    var response = await get(
-      Uri.parse(url),
-    );
-    if (response.statusCode == 200) {
-      sharedPreferences.clear();
-      var jsonData = json.decode(response.body);
-      sharedPreferences.setString(
-          "locationList", jsonEncode(jsonData['results']));
-      String? storedJsonData = sharedPreferences.getString('locationList');
-      sharedPreferences.setDouble("lat", latitude!);
-      sharedPreferences.setDouble("lag", longitude!);
-      List data = json.decode(storedJsonData!);
+    try {
+      SharedPreferences sharedPreferences =
+          await SharedPreferences.getInstance();
+      errorText.value = "Fetching data....";
+      update();
 
-      update();
-      return data.map((e) => LocationResult.fromJson(e)).toList();
-    } else {
-      errorText.value = "Something went wrong please try later.";
-      update();
+      String url =
+          "https://maps.googleapis.com/maps/api/place/search/json?location=$latitude,$longitude&rankby=distance&key=AIzaSyB2Az9gVUzQULUc55xQD9AE7gj9Ni5hvJk&sensor=true";
+      var response = await get(
+        Uri.parse(url),
+      );
+      if (response.statusCode == 200) {
+        sharedPreferences.clear();
+        var jsonData = json.decode(response.body);
+        sharedPreferences.setString(
+            "locationList", jsonEncode(jsonData['results']));
+        String? storedJsonData = sharedPreferences.getString('locationList');
+        sharedPreferences.setDouble("lat", latitude!);
+        sharedPreferences.setDouble("lag", longitude!);
+        List data = json.decode(storedJsonData!);
+
+        update();
+        return data.map((e) => LocationResult.fromJson(e)).toList();
+      } else {
+        errorText.value = "Something went wrong please try later.";
+        update();
+        return [];
+      }
+    } on Exception catch (e) {
+      if (e is SocketException) {
+        errorText.value = "Please check your internet connection.";
+      } else {
+        errorText.value = "Please try again after some time.";
+      }
       return [];
     }
   }
@@ -64,7 +73,6 @@ class PlaceController extends GetxController {
     final connectivityResult = await (Connectivity().checkConnectivity());
     if (connectivityResult == ConnectivityResult.mobile ||
         connectivityResult == ConnectivityResult.wifi) {
-      print("A");
       Location location = Location();
       LocationData _locationData;
       bool _serviceEnabled;
@@ -81,7 +89,7 @@ class PlaceController extends GetxController {
       }
 
       _permissionGranted = await location.hasPermission();
-      print("B");
+
       if (_permissionGranted == PermissionStatus.denied) {
         _permissionGranted = await location.requestPermission();
         if (_permissionGranted != PermissionStatus.granted) {
@@ -91,7 +99,6 @@ class PlaceController extends GetxController {
         }
       }
       _locationData = await location.getLocation();
-      print("C");
 
       List<LocationResult> response = await getPlaces(
           latitude: _locationData.latitude, longitude: _locationData.longitude);
@@ -119,13 +126,15 @@ class PlaceController extends GetxController {
       longitude.value = _locationData.longitude!;
       update();
     } else if (sharedPreferences.getString('locationList') != null) {
+      double? lat = sharedPreferences.getDouble("lat");
+      double? lag = sharedPreferences.getDouble("lag");
+      latitude.value = lat!;
+      longitude.value = lag!;
       String? storedJsonData = sharedPreferences.getString('locationList');
       List data = json.decode(storedJsonData!);
       var data2 = data.map((e) => LocationResult.fromJson(e)).toList();
       locationResults.addAll(data2);
-
       List<String> _resultTypes = [];
-
       for (var element in data2) {
         _resultTypes.addAll([...element.types, ..._resultTypes]);
       }
